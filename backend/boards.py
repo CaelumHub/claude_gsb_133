@@ -282,6 +282,12 @@ class BoardManager:
                            template_id: Optional[str] = None,
                            tags: Optional[List[str]] = None) -> Dict[str, Any]:
         self.load_index()
+        if template_id:
+            from . import templates as tpl
+            if tpl.get_template(template_id) is None:
+                raise HTTPException(status_code=404, detail="模板不存在")
+            # 模板的画布类型以模板自身为准, 旧模板缺少该字段时仍默认 board
+            mode = tpl.template_mode(template_id)
         board_id = new_board_id()
         while os.path.isdir(config.board_dir(board_id)):
             board_id = new_board_id()

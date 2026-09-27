@@ -282,6 +282,17 @@ BUILTIN_TEMPLATES: List[Dict[str, Any]] = [
 BUILTIN_INDEX: Dict[str, Dict[str, Any]] = {t["id"]: t for t in BUILTIN_TEMPLATES}
 
 
+def get_template(template_id: str) -> Optional[Dict[str, Any]]:
+    return BUILTIN_INDEX.get(template_id) or _load_custom().get(template_id)
+
+
+def template_mode(template_id: str, default: str = "board") -> str:
+    """模板自身声明的画布类型; 旧自定义模板缺省按普通白板处理。"""
+    tpl = get_template(template_id)
+    mode = (tpl or {}).get("mode")
+    return mode if mode in ("board", "mindmap") else default
+
+
 def build_template_shapes(template_id: str, mode: str = "board") -> List[Dict[str, Any]]:
     """实例化模板: 返回带全新 id 的图形列表(parent/from/to 同步重映射)。"""
     tpl = BUILTIN_INDEX.get(template_id)
@@ -308,7 +319,7 @@ def _remap_ids(shapes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         new_shape.pop("fc", None)
         out.append(new_shape)
     for shape in out:
-        for field in ("from", "to"):
+        for field in ("parent", "from", "to"):
             ref = shape.get(field)
             if isinstance(ref, str) and ref in id_map:
                 shape[field] = id_map[ref]
@@ -355,8 +366,10 @@ async def create_template(req: TemplateCreateReq,
     templates = _load_custom()
     tpl_id = "tpl" + secrets.token_hex(5)
     shapes: List[Dict[str, Any]] = []
+    mode = "board"
     if req.from_board:
         meta, _role = await board_ctx(req.from_board, user, "viewer")
+        mode = meta.get("mode") if meta.get("mode") in ("board", "mindmap") else "board"
         doc = await manager.get_doc(meta["id"])
         for shape in doc.visible_shapes():
             if len(shapes) >= 400:
@@ -367,6 +380,9 @@ async def create_template(req: TemplateCreateReq,
         if not shapes:
             raise HTTPException(status_code=400, detail="白板为空, 无法保存为模板")
     elif isinstance(req.definition, dict) and isinstance(req.definition.get("shapes"), list):
+        defined_mode = req.definition.get("mode")
+        if defined_mode in ("board", "mindmap"):
+            mode = defined_mode
         shapes = req.definition["shapes"][:400]
     else:
         raise HTTPException(status_code=400, detail="需要 from_board 或 definition.shapes")
@@ -375,7 +391,7 @@ async def create_template(req: TemplateCreateReq,
         "name": req.name[:60],
         "category": (req.category or "自定义")[:20],
         "description": (req.description or "")[:200],
-        "mode": "board",
+        "mode": mode,
         "owner": user["username"],
         "created_at": now_ms(),
         "shapes": shapes,
