@@ -29,7 +29,7 @@ class UserPatchReq(BaseModel):
 # ---------------------------------------------------------------- 白板
 class BoardCreateReq(BaseModel):
     name: str = Field(min_length=1, max_length=80)
-    mode: str = Field(default="board")    # board | mindmap
+    mode: Optional[str] = None            # board | mindmap; 缺省时跟随模板, 无模板则为 board
     template_id: Optional[str] = None
     tags: Optional[List[str]] = None
 

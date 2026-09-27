@@ -359,7 +359,7 @@ class BoardManager:
             i += 1
         for op in ops:   # 连线/父子关系映射到新 ID
             shape = op["shape"]
-            for field in ("from", "to"):
+            for field in ("from", "to", "parent"):
                 if shape.get(field) in id_map:
                     shape[field] = id_map[shape[field]]
         if ops:
@@ -418,7 +418,12 @@ async def list_boards(q: str = "", mode: str = "", tag: str = "",
 
 @router.post("")
 async def create_board(req: BoardCreateReq, user: Dict[str, Any] = Depends(auth.current_user)):
-    meta = await manager.create_board(req.name, req.mode, user["username"],
+    mode = req.mode
+    if mode not in ("board", "mindmap") and req.template_id:
+        # 客户端未显式指定模式时跟随模板类型(思维导图模板 → 思维导图白板)
+        from . import templates as tpl
+        mode = tpl.template_mode(req.template_id)
+    meta = await manager.create_board(req.name, mode or "board", user["username"],
                                       template_id=req.template_id, tags=req.tags)
     return {"board": meta}
 
